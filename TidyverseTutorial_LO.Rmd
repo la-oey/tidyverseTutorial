@@ -1,0 +1,429 @@
+---
+title: "Tidyverse Tutorial"
+author: "Lauren Oey"
+date: "4/9/2018"
+output: pdf_document
+---
+
+# WELCOME TO THE TIDYVERSE
+
+## ecosystem - collection of awesome, consistent packages
+## "tidy data" philosophy
+### 1. each variable forms a column
+### 2. each observation forms a row
+### 3. each type of observational unit forms a table
+## caveat: not a replacement to R but more a really easy to use supplement
+
+## Some Resources:
+### Tidyverse: https://www.tidyverse.org
+### R for Data Science by Hadley Wickham & Garrett Grolemund (online version): http://r4ds.had.co.nz
+
+# 
+```{r loadPackages}
+# If you haven't installed these packages already:
+
+# install.packages("tidyverse")
+# install.packages("dplyr")
+# install.packages("ggplot2")
+# install.packages("tidyr")
+# install.packages("readr")
+
+# tidyverse 
+library(tidyverse)
+detach(package:tidyverse)
+
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(readr)
+```
+
+# readr: Reading in a File
+```{r}
+# base R
+start.time = proc.time()
+oscars = read.csv("http://www.stat.columbia.edu/~gelman/arm/examples/academy.awards/oscars.csv", header = T)
+(total.time.base = proc.time() - start.time)
+
+# readr
+start.time = proc.time()
+oscars = read_csv("http://www.stat.columbia.edu/~gelman/arm/examples/academy.awards/oscars.csv")
+(total.time.readr = proc.time() - start.time)
+
+# Benefits of readr:
+## 1. Faster
+## 2. Smart! Knows that the header is meant to be the header
+## 3. Doesn't convert strings to factors
+```
+
+# tidyr: Reshaping Data
+
+## Hadley Wickham on "Tidy Data": http://vita.had.co.nz/papers/tidy-data.pdf
+```{r}
+# Let's start by looking at the data
+# install.packages("reshape2")
+library(reshape2)
+head(french_fries, 10)
+
+# Wide Format to Long/Narrow Format
+(french_fries.long <- gather(french_fries, key="flavour", value="rating", 5:9))
+
+# Long/Narrow Format to Wide Format
+spread(data=french_fries.long, key="flavour", value="rating")
+
+# Unite multiple columns into a single column
+(french_fries.unite <- unite(data=french_fries, col="subj_rep", subject, rep))
+
+# Separate single column into multiple columns
+separate(french_fries.unite, subj_rep, c("subject", "rep"))
+```
+
+# dplyr: Data Wrangling
+```{r}
+# install.packages("wordbankr")
+library(wordbankr)
+
+# dataset on children with regard to word learning
+wordz <- get_administration_data()
+head(wordz,10)
+summary(wordz)
+
+# making language and form factors
+wordz$language <- as.factor(wordz$language)
+wordz$form <- as.factor(wordz$form)
+summary(wordz)
+
+# dataset on the word items
+itemz <- get_item_data()
+head(itemz, 10)
+
+
+# filter() - choose certain rows (subset observations)
+filter(wordz, language == "English (American)")
+filter(wordz, language == "English (American)" & age <= 12)
+filter(wordz, language != "English (American)" & age <= 12)
+filter(wordz, language == "English (American)" | age <= 12)
+filter(wordz, xor(language == "English (American)", age <= 12))
+
+# select() - choose certain columns (subset variables)
+select(wordz, c("age", "sex", "comprehension", "production"))
+
+# arrange() - rearrange order of rows
+arrange(wordz, age)
+arrange(wordz, -age)
+arrange(wordz, desc(age))
+arrange(wordz, age, comprehension)
+
+# mutate() - creating new variables (new columns)
+mutate(wordz, prod_comp_ratio = production/comprehension)
+mutate(wordz, age_sex = paste(age, sep="_", sex))
+mutate(wordz, over1yr = ifelse(age >= 12, TRUE, FALSE))
+
+# summarise() - summarizing data; collapsing data across rows into a single row
+summarise(wordz, mean=mean(comprehension))
+summarise(wordz, mean=mean(comprehension), sd=sd(comprehension))
+```
+
+# Practice! (Wickham, 2014)
+```{r}
+flights <- read_csv("flights.csv")
+head(flights, 10)
+# Use the flights dataframe to answer the following questions:
+# 1. How many flights are there to SFO or OAK?
+# 2. Order the flights by most departure delay, followed by most arrival delay.
+# 3. Compute the speed. Which flight was the fastest?
+```
+
+```{r}
+# 1.
+nrow(filter(flights, dest %in% c("SFO","OAK")))
+
+# 2.
+arrange(flights, -dep_delay, -arr_delay)
+
+# 3.
+arrange(mutate(flights, speed = dist/time), -speed)
+```
+
+# Combining dataframes
+```{r}
+# left_join() / right_join() / inner_join() / full_join() - combining columns from dataframes
+(a <- data.frame(col1=c("A", "B", "C"), col2=c(1,2,3)))
+(b <- data.frame(col1=c("A", "B", "D"), col3=c(T,F,T)))
+left_join(a,b,by="col1")
+right_join(a,b,by="col1")
+inner_join(a,b,by="col1")
+full_join(a,b,by="col1")
+
+semi_join(a,b,by="col1")
+anti_join(a,b,by="col1")
+
+# bind_rows() - append rows to dataframe
+(c <- data.frame(col1=c("D", "E", "F"), col2=c(4,5,6)))
+bind_rows(a,c)
+
+# bind_cols() - append columns to dataframe
+bind_cols(a, b)
+```
+
+# Meet the Pipe %>% : Combining Functions
+```{r}
+# The pipe %>% allows us to combine functions
+# Object before %>% gets passed as the 1st argument in the function after %>%
+# instead of declaring the dataframe, the data becomes whatever was before the pipe
+
+wordz %>%
+  filter(language == "English (American)")
+# is equivalent to:
+filter(wordz, language == "English (American)")
+
+# Similarly,
+wordz %>%
+  filter(language == "English (American)") %>%
+  arrange(age)
+# is equivalent to:
+arrange(filter(wordz, language == "English (American)"), age)
+
+# The %>% makes the data more readable and more organized!
+
+# One more function:
+# group_by() - groups data into rows with same value of variable
+wordz %>%
+  group_by(language)
+# Not much to be seen here, but...
+
+wordz %>%
+  group_by(language) %>%
+  summarise(mean_comp = mean(comprehension),
+            mean_prod = mean(production))
+
+wordz %>%
+  group_by(language, age) %>%
+  summarise(n = n())
+
+
+# ungroup() - remove previous groupings
+wordz %>%
+  group_by(sex, language) %>%
+  mutate(mean_comp = mean(comprehension), 
+         mean_prod = mean(production)) %>%
+  ungroup() %>%
+  group_by(sex) %>%
+  summarise(newMean = mean(mean_comp))
+```
+
+# More Practice! (Wickham, 2014)
+```{r}
+# 4. Which destinations have the highest average delays?
+flights %>%
+  filter(!is.na(dep_delay)) %>%
+  group_by(dest) %>%
+  summarise(mean = mean(dep_delay)) %>%
+  arrange(-mean)
+
+arrange(summarise(group_by(flights, dest), mean=mean(dep_delay)), -mean)
+```
+
+# ggplot2: Data Visualization
+
+## One discrete variable
+```{r}
+# Bar Plot
+ggplot(wordz, aes(x=age)) +
+  geom_bar() +
+  ggtitle("Bar Plot: Count of Child Participants by Age")
+
+plot(wordz$age, main="Bar Plot: Count of Child Participants by Age")
+```
+
+## One continuous variable
+```{r}
+ggplot(wordz, aes(x=comprehension)) +
+  geom_histogram(binwidth=50) +
+  ggtitle("Histogram: Distribution of Comprehension Scores")
+
+ggplot(wordz, aes(x=comprehension)) +
+  geom_histogram(aes(y=..density..), fill="red", colour="black", alpha=0.5) +
+  geom_density() +
+  ggtitle("Density Plot: Distribution of Comprehension Scores")
+```
+
+# Combining dplyr + ggplot2
+## One discrete + one continuous variable
+```{r}
+
+wordz %>%
+  filter(language == "English (American)") %>%
+  ggplot(aes(x=as.factor(age), y=comprehension)) +
+    geom_boxplot() +
+    ggtitle("Boxplot: Comprehension Scores by Age for American English")
+
+wordz %>%
+  filter(language == "English (American)" & !is.na(sex)) %>%
+  ggplot(aes(x=as.factor(age), y=comprehension)) +
+    geom_boxplot() +
+    facet_wrap(~sex) +
+    ggtitle("Boxplot + Facet Wrap: Comprehension Score by Sex and Age for Am English")
+
+
+wordz %>%
+  filter(age < 20 & !is.na(sex) & language == "English (American)") %>%
+  ggplot(aes(x=sex, y=comprehension, fill=sex)) +
+  geom_violin() +
+  facet_wrap(~as.factor(age)) +
+  ggtitle("Violin Plot: Comprehension Score by Sex and Age (Under 20 months)") +
+  theme(axis.text = element_text(size=3))
+
+
+wordz %>%
+  filter(age < 10 & !is.na(sex) & language == "English (American)") %>%
+  ggplot(aes(x=sex, y=comprehension)) +
+  geom_dotplot(binaxis="y", stackdir="center") +
+  facet_wrap(~as.factor(age)) +
+  ggtitle("Dot Plot: Comprehension Score by Sex and Age (Under 10 months)")
+
+
+wordz %>%
+  filter(language == "English (American)") %>%
+  group_by(age) %>%
+  summarise(mean=mean(comprehension)) %>%
+  ggplot(aes(x=age, y=mean)) +
+    geom_bar(stat="identity") +
+    ggtitle("Bar Plot: Mean Comprehension Score by Age for American English")
+
+wordz %>%
+  filter(language == "English (American)") %>%
+  group_by(age) %>%
+  summarise(mean=mean(comprehension),
+            sd = sd(comprehension),
+            n = n()) %>%
+  ggplot(aes(x=age, y=mean)) +
+    geom_bar(stat="identity") +
+    geom_errorbar(aes(ymin=mean-(1.96*sd)/sqrt(n), ymax=mean+(1.96*sd)/sqrt(n))) +
+    ggtitle("Bar Plot w/ Error Bars: Mean Comprehension Score by Age for American English")
+```
+
+## Two continuous variables
+```{r}
+wordz %>%
+  filter(1 != production/comprehension & age==18) %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point() +
+    ggtitle("Scatter Plot: Production by Comprehension at 18 Months")
+
+wordz %>%
+  filter(1 != production/comprehension & age==18) %>%
+  ggplot(aes(x=comprehension, y=production, colour=language)) +
+    geom_point() +
+    ggtitle("Scatter Plot w/ Colour: Production by Comprehension at 18 Months")
+
+wordz %>%
+  filter(1 != production/comprehension & age==18) %>%
+  ggplot(aes(x=comprehension, y=production, colour=language)) +
+    geom_point() +
+    geom_rug() +
+    ggtitle("Scatter Plot w/ Rug: Production by Comprehension at 18 Months")
+
+# Fitting a model
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point() +
+    geom_smooth() +
+    ggtitle("Fitting Curve: Production by Comprehension at 18 Months in American English")
+
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point() +
+    geom_smooth(method='lm') +
+    ggtitle("Fitting Linear Model: Production by Comprehension at 18 Months")
+```
+
+## Very, very customizable
+```{r}
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production, shape=sex)) +
+    geom_point(size=8, colour="purple") +
+    geom_smooth(method='lm') +
+    ggtitle("So Much Customizability...") +
+    scale_x_continuous("Words Comprehended") +
+    scale_y_continuous("Words Produced") +
+    theme_bw()
+
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point(shape=35, size=8, colour="purple") +
+    geom_smooth(method='lm') +
+    ggtitle("So Much Customizability...") +
+    scale_x_continuous("Words Comprehended", limits=c(0,1000)) +
+    scale_y_continuous("Words Produced", limits=c(0,350)) +
+    theme_bw()
+
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point(shape=35, size=8, colour="purple") +
+    geom_smooth(method='lm') +
+    ggtitle("So Much Customizability...") +
+    scale_x_continuous("Words Comprehended", limits=c(0,1000)) +
+    scale_y_reverse("Words Produced") +
+    theme_bw() +
+    theme(axis.title=element_text(size=20),
+          axis.text=element_text(angle=180,size=15),
+          plot.title=element_text(colour="red", face="bold.italic", size=20))
+
+wordz %>%
+  filter(1 != production/comprehension & age==18 & language=="English (American)") %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_point(shape=35, size=8, colour="purple") +
+    geom_smooth(method='lm', color="darkgreen", fill="green") +
+    ggtitle("So Much Customizability...") +
+    scale_x_continuous("Words Comprehended", limits=c(0,1000)) +
+    scale_y_continuous("Words Produced", limits=c(0,350)) +
+    theme_minimal() +
+    theme(axis.title=element_text(size=20),
+          axis.text=element_text(angle=180,size=15),
+          plot.title=element_text(colour="red", face="bold.italic", size=20),
+          panel.background=element_rect(fill="skyblue"),
+          plot.background=element_rect(fill="navyblue"))
+```
+
+## Continuous bivariate distribution
+```{r}
+wordz %>%
+  filter(1 != production/comprehension) %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_bin2d() +
+    ggtitle("Scatter Plot w/ Colour: Production by Comprehension at 18 Months")
+
+wordz %>%
+  filter(1 != production/comprehension & production < 200 & comprehension > 200 & comprehension < 400) %>%
+  ggplot(aes(x=comprehension, y=production)) +
+    geom_bin2d() +
+    ggtitle("Scatter Plot w/ Colour: Production by Comprehension at 18 Months")
+```
+
+## Maps
+```{r}
+#install.package("maps")
+crimes <- data.frame(state = tolower(rownames(USArrests)), USArrests)
+crimesm <- reshape2::melt(crimes, id = 1)
+require(maps)
+states_map <- map_data("state")
+ggplot(crimes, aes(map_id = state)) +
+  geom_map(aes(fill = Murder), map = states_map) +
+  expand_limits(x = states_map$long, y = states_map$lat)
+
+ggplot(crimesm, aes(map_id = state)) +
+  geom_map(aes(fill = value), map = states_map) +
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  facet_wrap( ~ variable)
+
+```
+
+
+# If you want to play around with more datasets: https://vincentarelbundock.github.io/Rdatasets/datasets.html
+
